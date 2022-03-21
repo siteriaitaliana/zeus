@@ -5,7 +5,8 @@ import (
 	"html"
 	"log"
 	"net/http"
-  "time"
+	"time"
+	"encoding/json"
 
   vegeta "github.com/tsenart/vegeta/v12/lib"
 ) 
@@ -13,16 +14,23 @@ import (
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
-			runTest()
+			latency := runTest().String()
+			resp := make(map[string]string)
+			resp["latency"] = latency
+			jsonResp, err := json.Marshal(resp)
+			if err != nil {
+				log.Fatalf("Error happened in JSON marshal. Err: %s", err)
+			}
+			w.Write(jsonResp)
 	})
 
-	log.Println("Listening on localhost:8080")
+	log.Println("Listening on localhost:80")
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":80", nil))
 }
 
 
-func runTest() {
+func runTest() time.Duration {
   rate := vegeta.Rate{Freq: 100, Per: time.Second}
   duration := 4 * time.Second
   targeter := vegeta.NewStaticTargeter(vegeta.Target{
@@ -37,5 +45,6 @@ func runTest() {
   }
   metrics.Close()
 
-  fmt.Printf("99th percentile: %s\n", metrics.Latencies.P99)
+	fmt.Printf("99th percentile: %s\n", metrics.Latencies.P99)
+	return metrics.Latencies.P99
 }
